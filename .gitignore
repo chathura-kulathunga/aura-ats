@@ -1,0 +1,24 @@
+# =========================
+# BACKEND & SECURITY SHIELD
+# =========================
+
+# 1. API Keys and Secrets
+.env
+.env.*
+!.env.example
+
+# 2. Python Virtual Environment
+backend/venv/
+venv/
+env/
+
+# 3. SQLite Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# 4. Python Cache Files
+__pycache__/
+*.py[cod]
+*$py.class
