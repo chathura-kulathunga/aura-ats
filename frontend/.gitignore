@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# =========================
+# FRONTEND ENVIRONMENT VARS
+# =========================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
