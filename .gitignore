@@ -1,24 +1,44 @@
 # =========================
-# BACKEND & SECURITY SHIELD
+# BACKEND: PYTHON & FASTAPI
 # =========================
-
-# 1. API Keys and Secrets
-.env
-.env.*
-!.env.example
-
-# 2. Python Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
 backend/venv/
 venv/
 env/
+.pytest_cache/
 
-# 3. SQLite Databases
+# =========================
+# BACKEND: DATABASE
+# =========================
 *.db
 *.db-shm
 *.db-wal
 *.sqlite3
 
-# 4. Python Cache Files
-__pycache__/
-*.py[cod]
-*$py.class
+# =========================
+# FRONTEND: NODE & VITE
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# =========================
+# FRONTEND: TAURI
+# =========================
+src-tauri/target/
+
+# =========================
+# SECURITY: SECRETS & KEYS
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# SYSTEM: OS FILES
+# =========================
+.DS_Store
+Thumbs.db
