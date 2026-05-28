@@ -1,51 +1,21 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import google.generativeai as genai
-import PyPDF2
+import os
 import json
-from app.config import settings
+import PyPDF2
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
-# 1. Authenticate with your exact API key
-genai.configure(api_key=settings.GEMINI_API_KEY)
+load_dotenv()
 
-# 2. Dynamically scan Google's servers for your permitted models
-def get_permitted_model_name():
-    try:
-        available_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
-        # Priority 1: Standard 1.5 Flash (Fastest, best for JSON)
-        for name in available_models:
-            if "1.5-flash" in name and "latest" not in name:
-                return name
-        
-        # Priority 2: Any Flash model available to your key
-        for name in available_models:
-            if "flash" in name:
-                return name
-                
-        # Priority 3: Fallback to any available Pro model
-        for name in available_models:
-            if "pro" in name:
-                return name
-                
-        # Absolute Fallback: Grab the first text-capable model on your account
-        if available_models:
-            return available_models[0]
-            
-    except Exception as e:
-        print(f"Warning: Could not fetch model list ({e})")
-        
-    # Failsafe default
-    return "models/gemini-1.5-flash"
+# 1. Authenticate with DeepSeek using the OpenAI SDK
+api_key = os.getenv("DEEPSEEK_API_KEY")
+client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-# 3. Lock in the approved model
-MODEL_NAME = get_permitted_model_name()
+# 2. Lock in DeepSeek Chat (Extremely fast)
+MODEL_NAME = "deepseek-chat"
 print(f"AURA Engine: System Locked. Using AI Model -> {MODEL_NAME}")
-model = genai.GenerativeModel(MODEL_NAME)
 
 def extract_text_from_pdf(file_path: str) -> str:
     """Reads the raw text out of a local PDF file."""
@@ -62,11 +32,10 @@ def extract_text_from_pdf(file_path: str) -> str:
     return text
 
 async def analyze_cv_with_gemini(text: str) -> dict:
-    """Asynchronously feeds text to the dynamic model and enforces JSON output."""
+    """Feeds text to DeepSeek and enforces strict JSON output."""
     prompt = """
-    You are an elite, highly accurate ATS (Applicant Tracking System) AI. 
     Extract the candidate's details from the provided CV text.
-    Return EXACTLY a valid JSON object. Do not add any conversational text or explanations.
+    Return EXACTLY a valid JSON object.
     
     Keys to extract:
     - full_name (string)
@@ -81,20 +50,18 @@ async def analyze_cv_with_gemini(text: str) -> dict:
     """ + text
 
     try:
-        response = await model.generate_content_async(prompt)
-        clean_text = response.text.strip()
+        response = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are an elite ATS AI designed to output pure JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"} # DeepSeek natively locks to JSON!
+        )
         
-        # Google sometimes wraps JSON in markdown blocks. This strips it perfectly.
-        if clean_text.startswith("```json"):
-            clean_text = clean_text[7:]
-        elif clean_text.startswith("```"):
-            clean_text = clean_text[3:]
-        
-        if clean_text.endswith("```"):
-            clean_text = clean_text[:-3]
-            
-        return json.loads(clean_text.strip())
+        clean_text = response.choices[0].message.content.strip()
+        return json.loads(clean_text)
         
     except Exception as e:
-        print(f"Failed to parse AI output. AI may have hallucinated format: {e}")
+        print(f"Failed to parse DeepSeek output: {e}")
         return {}

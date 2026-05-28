@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react"
-import { UploadCloud, Search, FileText, Settings, Users, Loader2, RefreshCcw, Briefcase, Download } from "lucide-react"
+import { UploadCloud, Search, FileText, Settings, Users, Loader2, RefreshCcw, Briefcase, Download, Trash2 } from "lucide-react"
 import { open } from "@tauri-apps/plugin-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
-// Added 'mobile' to the interface
 interface Candidate {
   id: number;
   full_name: string;
@@ -18,8 +17,16 @@ interface Candidate {
   skills: string;
 }
 
+interface ScanStatus {
+  is_scanning: boolean;
+  total: number;
+  processed: number;
+  current_file: string;
+}
+
 export default function App() {
   const [isScanning, setIsScanning] = useState(false)
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
 
   const fetchCandidates = useCallback(async () => {
@@ -41,6 +48,37 @@ export default function App() {
     loadData()
   }, [fetchCandidates])
 
+  // ==========================================
+  // NEW: THE ENTERPRISE POLLING ENGINE
+  // ==========================================
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    if (isScanning) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch("http://127.0.0.1:8000/api/v1/scan/status")
+          if (res.ok) {
+            const data: ScanStatus = await res.json()
+            setScanStatus(data)
+
+            // Auto-stop and refresh when job is complete
+            if (!data.is_scanning && data.total > 0 && data.processed >= data.total) {
+              setIsScanning(false)
+              setScanStatus(null)
+              fetchCandidates()
+              clearInterval(interval)
+            }
+          }
+        } catch (error) {
+          console.error("Polling error:", error)
+        }
+      }, 1000) // Polls every 1 second
+    }
+
+    return () => clearInterval(interval)
+  }, [isScanning, fetchCandidates])
+
   const handleSelectFolder = async () => {
     try {
       const selectedPath = await open({
@@ -59,6 +97,7 @@ export default function App() {
 
   const triggerBackendScan = async (folderPath: string) => {
     setIsScanning(true)
+    setScanStatus({ is_scanning: true, total: 0, processed: 0, current_file: "Starting engine..." })
     try {
       const response = await fetch("http://127.0.0.1:8000/api/v1/scan", {
         method: "POST",
@@ -69,19 +108,17 @@ export default function App() {
     } catch (error) {
       console.error("Critical API Failure:", error)
       alert("Failed to connect to the AURA Processing Engine.")
-    } finally {
       setIsScanning(false)
     }
   }
 
-  // The new Export to Excel/CSV function
   const handleExportCSV = () => {
     if (candidates.length === 0) return alert("No data to export.")
-    
+
     const headers = ["Candidate Name", "Email", "Mobile", "Latest Role", "Company", "Experience (Years)", "Top Skills"]
     const csvContent = [
       headers.join(","),
-      ...candidates.map(c => 
+      ...candidates.map(c =>
         `"${c.full_name || ''}","${c.email || ''}","${c.mobile || ''}","${c.current_job_title || ''}","${c.latest_company || ''}","${c.total_years_of_experience || 0}","${c.skills || ''}"`
       )
     ].join("\n")
@@ -97,10 +134,28 @@ export default function App() {
     document.body.removeChild(link)
   }
 
+  const handlePurgeDatabase = async () => {
+    if (candidates.length === 0) return;
+    const confirmed = window.confirm("WARNING: Are you sure you want to permanently purge all candidate records? This action cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/v1/candidates", { method: "DELETE" });
+      if (response.ok) setCandidates([]);
+      else alert("Failed to purge the database. Check backend logs.");
+    } catch (error) {
+      console.error("Critical API Failure during purge:", error);
+    }
+  }
+
+  // Calculate Progress Percentage safely
+  const progressPercent = scanStatus && scanStatus.total > 0
+    ? Math.round((scanStatus.processed / scanStatus.total) * 100)
+    : 0;
+
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-zinc-50 overflow-hidden font-sans">
-      
-      {/* SIDEBAR */}
+
       <aside className="w-64 border-r border-zinc-800 bg-zinc-950/50 p-6 flex flex-col gap-8 shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 bg-zinc-50 rounded-md flex items-center justify-center">
@@ -121,37 +176,59 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* HEADER */}
+
         <header className="h-20 border-b border-zinc-800 px-8 flex items-center justify-between shrink-0 bg-zinc-950">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Candidate Database</h2>
             <p className="text-sm text-zinc-400">Total processed profiles: {candidates.length}</p>
           </div>
+
           <div className="flex items-center gap-3">
             <div className="relative w-64 mr-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <Input placeholder="Search by name..." className="pl-9 bg-zinc-900 border-zinc-800 text-sm focus-visible:ring-zinc-700" />
             </div>
-            
-            <Button variant="outline" size="icon" onClick={fetchCandidates} className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-50" title="Refresh Data">
+
+            <Button variant="outline" size="icon" onClick={fetchCandidates} disabled={isScanning} className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-50">
               <RefreshCcw className="w-4 h-4" />
             </Button>
 
-            {/* NEW EXPORT BUTTON */}
-            <Button variant="outline" size="icon" onClick={handleExportCSV} className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-50" title="Export to Excel">
+            <Button variant="outline" size="icon" onClick={handleExportCSV} disabled={isScanning} className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-50">
               <Download className="w-4 h-4" />
             </Button>
 
+            <Button variant="outline" size="icon" onClick={handlePurgeDatabase} disabled={isScanning} className="border-zinc-800 bg-zinc-900 hover:bg-red-950/50 text-zinc-400 hover:text-red-400 hover:border-red-900/50 transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+
             <Button onClick={handleSelectFolder} disabled={isScanning} className="gap-2 bg-zinc-50 text-zinc-950 hover:bg-zinc-200 min-w-[140px] ml-2">
-              {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Queuing...</> : <><UploadCloud className="w-4 h-4" /> Scan Directory</>}
+              {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</> : <><UploadCloud className="w-4 h-4" /> Scan Directory</>}
             </Button>
           </div>
         </header>
 
-        {/* DATA TABLE */}
+        {/* NEW: LIVE PROGRESS DASHBOARD */}
+        {isScanning && scanStatus && (
+          <div className="px-8 pt-4 pb-0 shrink-0">
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 flex flex-col gap-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-zinc-300 font-medium flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                  Processing: <span className="text-zinc-500 font-mono text-xs">{scanStatus.current_file}</span>
+                </span>
+                <span className="text-zinc-400 font-mono">{scanStatus.processed} / {scanStatus.total} CVs</span>
+              </div>
+              <div className="w-full bg-zinc-950 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-zinc-200 h-1.5 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto p-8">
           <div className="border border-zinc-800 rounded-lg bg-zinc-950/50">
             <Table>
@@ -176,7 +253,6 @@ export default function App() {
                 ) : (
                   candidates.map((candidate) => (
                     <TableRow key={candidate.id} className="border-zinc-800 hover:bg-zinc-900/50">
-                      {/* UPDATED CELL: Now shows Mobile Number */}
                       <TableCell className="font-medium text-zinc-100">
                         {candidate.full_name || "Unknown Candidate"}
                         <div className="flex flex-col gap-0.5 mt-1">
