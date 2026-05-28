@@ -1,12 +1,11 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    DEEPSEEK_API_KEY: str
     PORT: int = 8000
-    DATABASE_URL: str = "sqlite+aiosqlite:///./aura_ats.db"
-    GEMINI_API_KEY: str = "" # We will load this from the .env file
-    LOG_LEVEL: str = "INFO"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./aura_ats.db"  # <-- Restored this!
 
-    class Config:
-        env_file = ".env"
+    # This tells Pydantic to read the .env file and ignore any random extra variables
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
