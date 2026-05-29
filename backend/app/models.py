@@ -34,5 +34,5 @@ class ProcessingLog(Base):
     file_name = Column(String)
     failure_reason = Column(String)
     
-    # Modern, timezone-aware default timestamp
+    # Timezone-aware default timestamp
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
