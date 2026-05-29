@@ -1,0 +1,44 @@
+# =========================
+# BACKEND: PYTHON & FASTAPI
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+venv/
+env/
+.pytest_cache/
+
+# =========================
+# BACKEND: DATABASE
+# =========================
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# =========================
+# FRONTEND: NODE & VITE
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# =========================
+# FRONTEND: TAURI
+# =========================
+src-tauri/target/
+
+# =========================
+# SECURITY: SECRETS & KEYS
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# SYSTEM: OS FILES
+# =========================
+.DS_Store
+Thumbs.db
