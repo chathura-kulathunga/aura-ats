@@ -35,12 +35,12 @@ async def trigger_folder_scan(payload: dict, bg_tasks: BackgroundTasks):
     if not folder_path:
         raise HTTPException(status_code=400, detail="Missing required 'folder_path' parameter.")
     
-    # Executes seamlessly in the background
+    # Executes in the background
     bg_tasks.add_task(worker_engine.process_folder, folder_path)
     return {"status": "accepted", "message": "Scan queued successfully."}
 
 # ==========================================
-# NEW: LIVE POLLING STATUS ENDPOINT
+#       LIVE POLLING STATUS ENDPOINT
 # ==========================================
 @app.get("/api/v1/scan/status")
 async def get_scan_status():

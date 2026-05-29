@@ -26,7 +26,7 @@
     --radius: 0.5rem;
   }
 
-  /* We default the body to dark mode for that premium look */
+  /* Dark mode UI*/
   .dark, body {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
